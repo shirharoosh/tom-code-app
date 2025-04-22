@@ -1,7 +1,7 @@
 import { io } from "socket.io-client";
 
 // connect to backend server
-const socket = io("http://localhost:4000", {
+const socket = io(import.meta.env.VITE_BACKEND_URL, {
     autoConnect: false,
 });
 
