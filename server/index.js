@@ -4,7 +4,6 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const { Server } = require("socket.io");
 const CodeBlock = require('./modules/CodeBlock');
-const roomUsers = {};
 const mentors = {};
 
 const app = express();
@@ -68,20 +67,18 @@ io.on("connection", (socket) => {
     console.log("🟢 User connected:", socket.id);
 
     // 👉 Join a specific room
-    socket.on("join-room", (roomId) => {
+    socket.on("join-room", async (roomId) => {
         socket.join(roomId);
 
+        const clients = await io.in(roomId).fetchSockets();
+        const isMentor = !mentors[roomId]; // First join = mentor
+
         // Initialize room if not present
-        if (!roomUsers[roomId]) {
-            roomUsers[roomId] = [];
+        if (isMentor) {
+            mentors[roomId] = socket.id;
         }
 
         roomUsers[roomId].push(socket.id);
-
-        const isMentor = roomUsers[roomId].length === 1;
-        if (isMentor) {
-            mentors[roomId] = socket.id; // ✅ mark mentor
-        }
 
         const assignedRole = isMentor ? "mentor" : "student";
 
@@ -89,7 +86,7 @@ io.on("connection", (socket) => {
 
         socket.emit("role-assigned", assignedRole);
 
-        const studentCount = roomUsers[roomId] ? roomUsers[roomId].length - 1 : 0;
+        const studentCount = clients.length - 1;
 
         // Notify other users (e.g., student count)
         io.to(roomId).emit("student-count", studentCount);
@@ -118,11 +115,11 @@ io.on("connection", (socket) => {
         console.log("🔴 User disconnected:", socket.id);
 
         // Clean up all rooms this socket was in
-        for (const roomId in roomUsers) {
-            // Remove the user from the room list
-            roomUsers[roomId] = roomUsers[roomId].filter((id) => id !== socket.id);
+        for (const roomId in mentors) {
+            const socketsInRoom = await io.in(roomId).fetchSockets();
+            const remainingSockets = socketsInRoom.filter(s => s.id !== socket.id);
 
-            // 🔥 If the mentor disconnected
+            // If the disconnected user was the mentor
             if (mentors[roomId] === socket.id) {
                 console.log(`👋 Mentor left room ${roomId}. Kicking students.`);
 
@@ -138,24 +135,18 @@ io.on("connection", (socket) => {
                 // Notify all students in the room in a slight delay
                 setTimeout(() => {
                     io.to(roomId).emit("mentor-left");
-
-                // Clean up
                     delete mentors[roomId];
-                    delete roomUsers[roomId];
                     console.log(`🧹 Room ${roomId} cleaned up after mentor left.`);
                 }, 500);
-                continue;
             }
 
-            // 🧹 If the room is now empty
-            if (roomUsers[roomId]?.length === 0) {
-                delete roomUsers[roomId];
+            // 🧹 If the room is now empty, clean up mentor tracking
+            if (remainingSockets.length === 0) {
                 delete mentors[roomId];
                 console.log(`🧹 Room ${roomId} is empty. Cleaned up.`);
             } else {
                 // Broadcast updated student count
-                const studentCount = roomUsers[roomId].length - 1;
-                io.to(roomId).emit("student-count", studentCount);
+                io.to(roomId).emit("student-count", remainingSockets.length - 1);
             }
         }
     });

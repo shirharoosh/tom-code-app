@@ -16,6 +16,7 @@ export default function CodeEditor() {
 
     // 🔁 1. Join room and assign role
     useEffect(() => {
+        setRole("");
         console.log("🧠 useEffect triggered with ID:", id);
 
         // 🔁 1. Fetch the code block data from the backend
