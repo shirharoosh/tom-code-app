@@ -4,7 +4,7 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const { Server } = require("socket.io");
 const CodeBlock = require('./modules/CodeBlock');
-const mentors = {};
+
 
 const app = express();
 const server = http.createServer(app);
@@ -56,12 +56,14 @@ app.get("/codeblocks/:id", async (req, res) => {
 });
 
 
-// 🧠 Socket.IO real-time connection placeholder (to expand later)
+// 🧠 Socket.IO real-time connection placeholder
 const io = new Server(server, {
     cors: {
         origin: "*",
     },
 });
+
+const mentors = {};
 
 io.on("connection", (socket) => {
     console.log("🟢 User connected:", socket.id);
@@ -98,12 +100,11 @@ io.on("connection", (socket) => {
     });        
 
     // 👉 Leave room
-    socket.on("leave-room", (roomId) => {
+    socket.on("leave-room", async (roomId) => {
         socket.leave(roomId);
-        roomUsers[roomId] = roomUsers[roomId]?.filter((id) => id !== socket.id);
-
-        // Emit updated student count
-        io.to(roomId).emit("student-count", roomUsers[roomId].length - 1);
+        const clients = await io.in(roomId).fetchSockets();
+        const studentCount = clients.filter(c => c.id !== mentors[roomId]).length;
+        io.to(roomId).emit("student-count", studentCount);
 
         console.log(`👋 ${socket.id} left room ${roomId}`);
     });
@@ -114,8 +115,8 @@ io.on("connection", (socket) => {
 
         // Clean up all rooms this socket was in
         for (const roomId in mentors) {
-            const socketsInRoom = await io.in(roomId).fetchSockets();
-            const remaining = socketsInRoom.filter(s => s.id !== socket.id);
+            const clients = await io.in(roomId).fetchSockets();
+            const remaining = clients.filter(s => s.id !== socket.id);
 
             // If the disconnected user was the mentor
             if (mentors[roomId] === socket.id) {
@@ -138,7 +139,7 @@ io.on("connection", (socket) => {
                 }, 500);
             } else {
                 // Not a mentor — just update student count
-                const studentCount = remaining.filter(c => c.id !== mentors[roomId]).length;
+                const studentCount = remaining.filter(s => s.id !== mentors[roomId]).length;
                 io.to(roomId).emit("student-count", studentCount);
             }
 
@@ -146,6 +147,7 @@ io.on("connection", (socket) => {
             // 🧹 If the room is now empty, clean up
             if (remaining.length === 0) {
                 delete mentors[roomId];
+                console.log(`🧼 Room ${roomId} is empty and cleaned up`);
             }
         }
     });
