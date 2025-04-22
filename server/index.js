@@ -106,12 +106,12 @@ io.on("connection", (socket) => {
     socket.on("leave-room", async (roomId) => {
         socket.leave(roomId);
         if (roomMembers[roomId]) {
-          roomMembers[roomId].delete(socket.id);
-        }
+            roomMembers[roomId].delete(socket.id);
       
-        const studentCount = [...(roomMembers[roomId] || [])].filter(id => id !== mentors[roomId]).length;
-        io.to(roomId).emit("student-count", studentCount);
-        console.log(`👋 ${socket.id} left room ${roomId}`);
+            const studentCount = [...roomMembers[roomId]].filter(id => id !== mentors[roomId]).length;
+            io.to(roomId).emit("student-count", studentCount);
+            console.log(`👋 ${socket.id} left room ${roomId}`);
+        }
     });
       
 
@@ -120,37 +120,49 @@ io.on("connection", (socket) => {
         console.log("🔴 Disconnected:", socket.id);
       
         for (const roomId in roomMembers) {
-          roomMembers[roomId].delete(socket.id);
-      
-          const stillInRoom = [...roomMembers[roomId]];
-      
-          if (mentors[roomId] === socket.id) {
-            console.log(`👋 Mentor left ${roomId}`);
-      
-            try {
-              const block = await CodeBlock.findById(roomId);
-              if (block) {
-                io.to(roomId).emit("reset-code", block.template);
-              }
-            } catch (err) {
-              console.error("❌ Error fetching block:", err);
-            }
-      
-            setTimeout(() => {
-              io.to(roomId).emit("mentor-left");
-              delete mentors[roomId];
-              console.log(`🧹 Mentor cleanup for room ${roomId}`);
-            }, 500);
-          } else {
+            if (!roomMembers[roomId]) continue;
+
+            // Remove the socket from the room
+            roomMembers[roomId].delete(socket.id);
+
+            const stillInRoom = [...roomMembers[roomId]];
             const studentCount = stillInRoom.filter(id => id !== mentors[roomId]).length;
+
+            // 📡 Broadcast updated student count
             io.to(roomId).emit("student-count", studentCount);
-          }
-      
-          if (stillInRoom.length === 0) {
-            delete roomMembers[roomId];
-            delete mentors[roomId];
-            console.log(`🧼 Room ${roomId} is fully cleaned up.`);
-          }
+            console.log(`🔁 Updated student count for ${roomId}: ${studentCount}`);
+
+            // 🔥 If mentor left
+            if (mentors[roomId] === socket.id) {
+                console.log(`👋 Mentor left room ${roomId}`);
+                try {
+                    const block = await CodeBlock.findById(roomId);
+                    if (block) {
+                        io.to(roomId).emit("reset-code", block.template);
+                        console.log("🔁 Code reset for students");
+                    }
+                } catch (err) {
+                    console.error("❌ Could not fetch block:", err);
+                }
+
+                // 📢 Notify students BEFORE cleaning up
+                io.to(roomId).emit("mentor-left");
+                console.log(`📢 mentor-left emitted to room ${roomId}`);
+
+                // Cleanup after short delay
+                setTimeout(() => {
+                    delete mentors[roomId];
+                    delete roomMembers[roomId];
+                    console.log(`🧹 Room ${roomId} fully cleaned`);
+                }, 500);
+            }
+
+            // 🧼 If room is now completely empty (no mentor or students)
+            if (stillInRoom.length === 0) {
+                delete roomMembers[roomId];
+                delete mentors[roomId];
+                console.log(`🧼 Room ${roomId} is empty. Cleaned up.`);
+            }
         }
     });      
 });
