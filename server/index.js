@@ -78,15 +78,13 @@ io.on("connection", (socket) => {
             mentors[roomId] = socket.id;
         }
 
-        roomUsers[roomId].push(socket.id);
-
         const assignedRole = isMentor ? "mentor" : "student";
 
         console.log(`🎭 ${assignedRole} joined room ${roomId}: ${socket.id}`);
 
         socket.emit("role-assigned", assignedRole);
 
-        const studentCount = clients.length - 1;
+        const studentCount = clients.filter(c => c.id !== mentors[roomId]).length;
 
         // Notify other users (e.g., student count)
         io.to(roomId).emit("student-count", studentCount);
@@ -117,7 +115,7 @@ io.on("connection", (socket) => {
         // Clean up all rooms this socket was in
         for (const roomId in mentors) {
             const socketsInRoom = await io.in(roomId).fetchSockets();
-            const remainingSockets = socketsInRoom.filter(s => s.id !== socket.id);
+            const remaining = socketsInRoom.filter(s => s.id !== socket.id);
 
             // If the disconnected user was the mentor
             if (mentors[roomId] === socket.id) {
@@ -138,19 +136,21 @@ io.on("connection", (socket) => {
                     delete mentors[roomId];
                     console.log(`🧹 Room ${roomId} cleaned up after mentor left.`);
                 }, 500);
+            } else {
+                // Not a mentor — just update student count
+                const studentCount = remaining.filter(c => c.id !== mentors[roomId]).length;
+                io.to(roomId).emit("student-count", studentCount);
             }
 
-            // 🧹 If the room is now empty, clean up mentor tracking
-            if (remainingSockets.length === 0) {
+
+            // 🧹 If the room is now empty, clean up
+            if (remaining.length === 0) {
                 delete mentors[roomId];
-                console.log(`🧹 Room ${roomId} is empty. Cleaned up.`);
-            } else {
-                // Broadcast updated student count
-                io.to(roomId).emit("student-count", remainingSockets.length - 1);
             }
         }
     });
 });
+
 
 // 🚀 Start the server
 const PORT = 4000;
