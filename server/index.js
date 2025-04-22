@@ -79,17 +79,19 @@ io.on("connection", (socket) => {
 
         roomMembers[roomId].add(socket.id);
 
-        const isMentor = !mentors[roomId];
+        const clients = await io.in(roomId).fetchSockets();
+        const isMentor = clients.length === 1; // 👈 Only 1 = this is the first socket
+        
         if (isMentor) {
             mentors[roomId] = socket.id;
         }
+
         const assignedRole = isMentor ? "mentor" : "student";
         console.log(`🎭 ${assignedRole} joined room ${roomId}: ${socket.id}`);
         socket.emit("role-assigned", assignedRole);
 
-        const studentCount = [...roomMembers[roomId]].filter(id => id !== mentors[roomId]).length;
+        const studentCount = clients.filter(c => c.id !== mentors[roomId]).length;
         io.to(roomId).emit("student-count", studentCount);
-
     });
 
     
