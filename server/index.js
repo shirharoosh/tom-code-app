@@ -138,11 +138,12 @@ io.on("connection", (socket) => {
                 // Notify all students in the room in a slight delay
                 setTimeout(() => {
                     io.to(roomId).emit("mentor-left");
-                  }, 500);
 
                 // Clean up
-                delete mentors[roomId];
-                delete roomUsers[roomId];
+                    delete mentors[roomId];
+                    delete roomUsers[roomId];
+                    console.log(`🧹 Room ${roomId} cleaned up after mentor left.`);
+                }, 500);
                 continue;
             }
 
