@@ -8,7 +8,7 @@ export default function Lobby() {
 
     useEffect(() => {
         axios
-            .get("http://localhost:4000/codeblocks")
+            .get(`${import.meta.env.VITE_BACKEND_URL}/codeblocks`)
             .then((res) => setBlocks(res.data))
             .catch((err) => console.error("Failed to fetch blocks:", err));
     }, []);
