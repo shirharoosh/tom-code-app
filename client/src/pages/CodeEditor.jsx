@@ -116,12 +116,14 @@ export default function CodeEditor() {
             {/* Monaco Editor */}
             <div style={{ flexGrow: 1 }}>
                 <Editor
+                    key={role}
                     height="100%"
                     width="100%"
                     defaultLanguage="javascript"
                     value={code}
                     onChange={(value) => {
                         if (role === "student") {
+                            console.log("✏️ Emitting code update:", value);
                             setCode(value);
                             socket.emit("code-update", { roomId: id, code: value });
                             
@@ -134,7 +136,7 @@ export default function CodeEditor() {
                     }}
                     theme="vs-dark"
                     options={{
-                        readOnly: role == "mentor" || isSolved, //✅ read-only for mentor
+                        readOnly: role === "mentor" || isSolved, //✅ read-only for mentor
                         minimap: { enabled: false },
                         fontSize: 14,
                     }}
