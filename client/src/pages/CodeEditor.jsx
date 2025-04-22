@@ -20,7 +20,7 @@ export default function CodeEditor() {
 
         // 🔁 1. Fetch the code block data from the backend
         axios
-            .get(`http://localhost:4000/codeblocks/${id}`)
+            .get(`${import.meta.env.VITE_BACKEND_URL}/codeblocks/${id}`)
             .then((res) => {
                 console.log("✅ Fetched block:", res.data);
                 setBlock(res.data);
